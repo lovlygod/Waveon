@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+  background: #121212;
+}
+
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.waveon-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+}
+
+.waveon-slider::-webkit-slider-runnable-track {
+  height: 10px;
+  background: transparent;
+}
+
+.waveon-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -3px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+}
+
+.waveon-slider::-moz-range-track {
+  height: 10px;
+  background: transparent;
+  border: none;
+}
+
+.waveon-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+}
+
+@keyframes waveon-active-flow {
+  0% {
+    box-shadow:
+      inset 0 0 26px rgba(109, 92, 255, 0.18),
+      0 0 0 1px rgba(109, 92, 255, 0.34),
+      0 0 24px rgba(109, 92, 255, 0.18);
+    background:
+      radial-gradient(circle at 50% 50%, rgba(109, 92, 255, 0.18), transparent 30%),
+      radial-gradient(circle at 50% 50%, rgba(0, 209, 255, 0.08), transparent 52%),
+      rgba(18, 18, 18, 0.96);
+  }
+  25% {
+    box-shadow:
+      inset 0 0 28px rgba(86, 149, 255, 0.18),
+      0 0 0 1px rgba(86, 149, 255, 0.34),
+      0 0 24px rgba(86, 149, 255, 0.16);
+    background:
+      radial-gradient(circle at 50% 50%, rgba(86, 149, 255, 0.18), transparent 30%),
+      radial-gradient(circle at 50% 50%, rgba(0, 209, 255, 0.08), transparent 52%),
+      rgba(18, 18, 18, 0.96);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 30px rgba(0, 209, 255, 0.18),
+      0 0 0 1px rgba(0, 209, 255, 0.32),
+      0 0 24px rgba(0, 209, 255, 0.16);
+    background:
+      radial-gradient(circle at 50% 50%, rgba(0, 209, 255, 0.18), transparent 30%),
+      radial-gradient(circle at 50% 50%, rgba(0, 255, 163, 0.08), transparent 52%),
+      rgba(18, 18, 18, 0.96);
+  }
+  75% {
+    box-shadow:
+      inset 0 0 28px rgba(0, 255, 163, 0.17),
+      0 0 0 1px rgba(0, 255, 163, 0.28),
+      0 0 24px rgba(0, 255, 163, 0.14);
+    background:
+      radial-gradient(circle at 50% 50%, rgba(0, 255, 163, 0.16), transparent 30%),
+      radial-gradient(circle at 50% 50%, rgba(255, 118, 194, 0.07), transparent 52%),
+      rgba(18, 18, 18, 0.96);
+  }
+  100% {
+    box-shadow:
+      inset 0 0 28px rgba(255, 118, 194, 0.18),
+      0 0 0 1px rgba(255, 118, 194, 0.3),
+      0 0 24px rgba(255, 118, 194, 0.14);
+    background:
+      radial-gradient(circle at 50% 50%, rgba(255, 118, 194, 0.16), transparent 30%),
+      radial-gradient(circle at 50% 50%, rgba(109, 92, 255, 0.08), transparent 52%),
+      rgba(18, 18, 18, 0.96);
+  }
+}
+
+.waveon-playing-glow {
+  animation: waveon-active-flow 12s linear infinite;
+  will-change: box-shadow, background;
+}
