@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactElement } from 'react';
+import { Suspense, lazy, useCallback, useMemo, useState, type ReactElement } from 'react';
 import { pageTitles } from '@/constants/navigation';
 import { useDownload } from '@/hooks/useDownload';
 import { usePlayer } from '@/hooks/usePlayer';
@@ -13,12 +13,13 @@ import { CreatePlaylistDialog } from '@/components/playlists/CreatePlaylistDialo
 import { ImportPlaylistDialog } from '@/components/playlists/ImportPlaylistDialog';
 import { RenamePlaylistDialog } from '@/components/playlists/RenamePlaylistDialog';
 import { DownloadPage } from '@/pages/DownloadPage';
-import { FavoritesPage } from '@/pages/FavoritesPage';
 import { HomePage } from '@/pages/HomePage';
 import { LibraryPage } from '@/pages/LibraryPage';
-import { PlaylistDetailPage } from '@/pages/PlaylistDetailPage';
 import { PlaylistsPage } from '@/pages/PlaylistsPage';
-import { SettingsPage } from '@/pages/SettingsPage';
+
+const FavoritesPage = lazy(async () => import('@/pages/FavoritesPage').then((module) => ({ default: module.FavoritesPage })));
+const PlaylistDetailPage = lazy(async () => import('@/pages/PlaylistDetailPage').then((module) => ({ default: module.PlaylistDetailPage })));
+const SettingsPage = lazy(async () => import('@/pages/SettingsPage').then((module) => ({ default: module.SettingsPage })));
 
 export function MainContent(): ReactElement {
   const {
@@ -36,6 +37,7 @@ export function MainContent(): ReactElement {
   const [isRenamePlaylistOpen, setIsRenamePlaylistOpen] = useState(false);
 
   const shouldAnimate = animationsEnabled;
+  const loadingFallback = useMemo(() => <EmptyState title="Загрузка раздела..." />, []);
   const tracksState = useTracks(activePage === 'home' || activePage === 'library' || activePage === 'playlists');
   const playlistsState = usePlaylists(activePage === 'home' || activePage === 'playlists');
   const handlePlaylistImported = useCallback(async (result: { playlistId: number }) => {
@@ -180,7 +182,7 @@ export function MainContent(): ReactElement {
   return (
     <ContentShell>
       <PageHeader title={pageTitles[activePage]} />
-      {pageContent}
+      <Suspense fallback={loadingFallback}>{pageContent}</Suspense>
 
       <CreatePlaylistDialog
         open={isCreatePlaylistOpen}

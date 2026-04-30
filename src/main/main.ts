@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, protocol, net, dialog, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import {
   addTracksToPlaylist,
   createPlaylist,
@@ -94,6 +95,10 @@ function createWindow(): void {
   });
 }
 
+function getPrimaryWindow(): BrowserWindow | null {
+  return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
+}
+
 app.whenReady().then(() => {
   protocol.handle('waveon', async (request) => {
     const filePath = normalizeWaveonPath(request.url);
@@ -109,12 +114,9 @@ app.whenReady().then(() => {
       const safeStart = Number.isFinite(start) ? start : 0;
       const safeEnd = Number.isFinite(end) ? end : fileSize - 1;
       const chunkSize = safeEnd - safeStart + 1;
-      const handle = await fs.promises.open(filePath, 'r');
-      const buffer = Buffer.alloc(chunkSize);
-      await handle.read(buffer, 0, chunkSize, safeStart);
-      await handle.close();
+      const stream = fs.createReadStream(filePath, { start: safeStart, end: safeEnd });
 
-      return new Response(buffer, {
+      return new Response(Readable.toWeb(stream) as unknown as BodyInit, {
         status: 206,
         headers: {
           'Content-Type': contentType,
@@ -125,8 +127,8 @@ app.whenReady().then(() => {
       });
     }
 
-    const buffer = await fs.promises.readFile(filePath);
-    return new Response(buffer, {
+    const stream = fs.createReadStream(filePath);
+    return new Response(Readable.toWeb(stream) as unknown as BodyInit, {
       status: 200,
       headers: {
         'Content-Type': contentType,
@@ -153,13 +155,13 @@ app.on('window-all-closed', () => {
 ipcMain.handle('app:getVersion', () => app.getVersion());
 
 ipcMain.handle('window:minimize', () => {
-  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
+  const win = getPrimaryWindow();
   win?.minimize();
   return { ok: true };
 });
 
 ipcMain.handle('window:toggleMaximize', () => {
-  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
+  const win = getPrimaryWindow();
   if (!win) return { isMaximized: false };
   if (win.isMaximized()) {
     win.unmaximize();
@@ -170,14 +172,19 @@ ipcMain.handle('window:toggleMaximize', () => {
 });
 
 ipcMain.handle('window:close', () => {
-  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
+  const win = getPrimaryWindow();
   win?.close();
   return { ok: true };
 });
 
 ipcMain.handle('dialog:pickPlaylistCover', async () => {
-  const window = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null;
-  const result = await dialog.showOpenDialog(window ?? undefined, {
+  const window = getPrimaryWindow();
+  const result = window
+    ? await dialog.showOpenDialog(window, {
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
+    })
+    : await dialog.showOpenDialog({
     properties: ['openFile'],
     filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
   });

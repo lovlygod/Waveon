@@ -15,7 +15,17 @@ export function useDownload({ onDownloaded }: UseDownloadOptions = {}) {
 
   useEffect(() => {
     const unsubscribe = window.waveon.download.onProgress((payload) => {
-      setDownloadProgress(payload);
+      setDownloadProgress((prev) => {
+        if (
+          prev
+          && prev.percent === payload.percent
+          && prev.stage === payload.stage
+          && prev.text === payload.text
+        ) {
+          return prev;
+        }
+        return payload;
+      });
     });
 
     return () => unsubscribe();
@@ -57,8 +67,9 @@ export function useDownload({ onDownloaded }: UseDownloadOptions = {}) {
       setDownloadProgress({ percent: 100, stage: 'finished', text: 'Готово' });
       toast.success('Трек добавлен в библиотеку');
       await onDownloaded?.();
-    } catch {
-      toast.error('Ошибка при скачивании');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Ошибка при скачивании';
+      toast.error(message);
     } finally {
       setIsDownloadLoading(false);
     }

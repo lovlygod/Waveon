@@ -133,6 +133,60 @@ function sanitizeName(value: string): string {
   return sanitized || 'track';
 }
 
+function deriveArtistAndTitle(preview: DownloadPreview): { artist: string; title: string } {
+  const currentArtist = preview.artist?.trim() || '';
+  const currentTitle = preview.title?.trim() || '';
+
+  if (currentArtist && currentArtist !== 'Unknown artist' && currentTitle && currentTitle !== 'Unknown title') {
+    return { artist: currentArtist, title: currentTitle };
+  }
+
+  const parts = currentTitle.split(' - ').map((item) => item.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    const [artist, ...titleParts] = parts;
+    return {
+      artist: currentArtist && currentArtist !== 'Unknown artist' ? currentArtist : artist,
+      title: titleParts.join(' - ') || currentTitle || 'Unknown title'
+    };
+  }
+
+  return {
+    artist: currentArtist || 'Unknown artist',
+    title: currentTitle || 'Unknown title'
+  };
+}
+
+async function probeDurationSeconds(filePath: string): Promise<number | null> {
+  const candidates = [
+    process.env.FFPROBE_PATH,
+    'ffprobe',
+    'ffprobe.exe'
+  ].filter((value): value is string => Boolean(value));
+
+  for (const candidate of candidates) {
+    try {
+      const output = await runCommand(candidate, [
+        '-v',
+        'error',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'default=noprint_wrappers=1:nokey=1',
+        filePath
+      ]);
+
+      const value = Number.parseFloat(output.trim());
+      if (Number.isFinite(value) && value > 0) {
+        return Math.round(value);
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+
+  return null;
+}
+
 function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }
@@ -469,16 +523,44 @@ export async function getPreviewByUrl(url: string, options: { skipValidation?: b
     return cached;
   }
 
-  const raw = await runYtDlp([
-    '--no-playlist',
-    '--skip-download',
-    '--no-warnings',
-    '--encoding',
-    'utf-8',
-    '--print',
-    '%(title)s\n%(uploader)s\n%(duration)s\n%(thumbnail)s\n%(webpage_url)s',
-    normalizedUrl
-  ]);
+  let raw: string;
+  try {
+    raw = await runYtDlp([
+      '--no-playlist',
+      '--skip-download',
+      '--no-warnings',
+      '--encoding',
+      'utf-8',
+      '--print',
+      '%(title)s\n%(uploader)s\n%(duration)s\n%(thumbnail)s\n%(webpage_url)s',
+      normalizedUrl
+    ]);
+  } catch (error) {
+    if (!isSoundCloudUrl(normalizedUrl)) {
+      throw error;
+    }
+
+    const oEmbed = await getSoundCloudOEmbedMetadata(normalizedUrl);
+    if (oEmbed.title || oEmbed.coverUrl) {
+      const fallbackPreview: DownloadPreview = {
+        title: oEmbed.title || 'Unknown title',
+        artist: 'Unknown artist',
+        duration: 0,
+        coverUrl: oEmbed.coverUrl || 'https://placehold.co/300x300/181818/ffffff?text=Waveon',
+        sourceUrl: normalizeSourceUrl(normalizedUrl)
+      };
+
+      previewCache.set(normalizedUrl, fallbackPreview);
+      return fallbackPreview;
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    if (/HTTP Error 404/i.test(message) || /not found/i.test(message)) {
+      throw new Error('Трек SoundCloud недоступен: ссылка удалена, приватная или временно недоступна (404).');
+    }
+
+    throw error;
+  }
 
   const [title, artist, durationRaw, coverUrlRaw, sourceUrlRaw] = raw.split(/\r?\n/);
 
@@ -802,28 +884,40 @@ export async function downloadTrackByPreview(
   const safeBase = sanitizeName(`${preview.artist} - ${preview.title}`);
   const uniqueBase = createUniqueBaseName(safeBase);
   const outputTemplate = path.join(musicDir, `${uniqueBase}.%(ext)s`);
-  await runYtDlpWithProgress([
-    '--no-playlist',
-    '--no-warnings',
-    '--encoding',
-    'utf-8',
-    '--newline',
-    '-x',
-    '--audio-format',
-    'mp3',
-    '--audio-quality',
-    '0',
-    '--ffmpeg-location',
-    ffmpegCommand,
-    '-o',
-    outputTemplate,
-    preview.sourceUrl
-  ], onProgress);
+  try {
+    await runYtDlpWithProgress([
+      '--no-playlist',
+      '--no-warnings',
+      '--encoding',
+      'utf-8',
+      '--newline',
+      '-x',
+      '--audio-format',
+      'mp3',
+      '--audio-quality',
+      '0',
+      '--ffmpeg-location',
+      ffmpegCommand,
+      '-o',
+      outputTemplate,
+      preview.sourceUrl
+    ], onProgress);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/HTTP Error 404/i.test(message) || /not found/i.test(message)) {
+      throw new Error('Не удалось скачать трек: ссылка SoundCloud недоступна (404, удалена или приватная).');
+    }
+    throw error;
+  }
 
   const filePath = path.join(musicDir, `${uniqueBase}.mp3`);
   if (!fs.existsSync(filePath)) {
     throw new Error('Файл mp3 не найден после скачивания. Проверьте yt-dlp и ffmpeg.');
   }
+
+  const normalizedMeta = deriveArtistAndTitle(preview);
+  const probedDuration = await probeDurationSeconds(filePath);
+  const resolvedDuration = probedDuration ?? preview.duration;
 
   let coverPath: string | null = null;
   if (preview.coverUrl) {
@@ -837,9 +931,9 @@ export async function downloadTrackByPreview(
   }
 
   return {
-    title: preview.title,
-    artist: preview.artist,
-    duration: preview.duration,
+    title: normalizedMeta.title,
+    artist: normalizedMeta.artist,
+    duration: resolvedDuration,
     coverPath,
     filePath,
     sourceUrl: preview.sourceUrl

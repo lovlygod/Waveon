@@ -1,5 +1,7 @@
 export function formatTime(totalSec: number): string {
-  if (!Number.isFinite(totalSec) || totalSec < 0) return '0:00';
+  if (!Number.isFinite(totalSec) || totalSec < 0) return '--:--';
+
+  if (totalSec === 0) return '--:--';
 
   const normalized = Math.max(0, Math.round(totalSec));
   const minutes = Math.floor(normalized / 60);
