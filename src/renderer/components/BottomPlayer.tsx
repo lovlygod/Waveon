@@ -2,6 +2,7 @@ import { SkipBack, Play, SkipForward, Volume2, VolumeX, Pause } from 'lucide-rea
 import { motion } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { usePlayerStore } from '@/store/player.store';
+import { useAudioVisualizerStore } from '@/store/audio-visualizer.store';
 import { DragSlider } from './DragSlider';
 import { formatTime } from '@/lib/formatTime';
 import { fileUrl } from '@/lib/fileUrl';
@@ -9,7 +10,13 @@ import { TrackCover } from '@/components/music/TrackCover';
 
 export function BottomPlayer(): ReactElement {
   const { currentTrack, isPlaying, setIsPlaying, playNext, playPrev } = usePlayerStore();
+  const setVisualizerLevels = useAudioVisualizerStore((state) => state.setLevels);
+  const resetVisualizer = useAudioVisualizerStore((state) => state.reset);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const rafRef = useRef<number | null>(null);
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
   const [volume, setVolume] = useState(100);
@@ -67,6 +74,70 @@ export function BottomPlayer(): ReactElement {
     if (!audio) return;
     audio.volume = volume / 100;
   }, [volume]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (!isPlaying || !currentTrack) {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      resetVisualizer();
+      return;
+    }
+
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContext();
+    }
+
+    const context = audioContextRef.current;
+
+    if (context.state === 'suspended') {
+      void context.resume();
+    }
+
+    if (!sourceNodeRef.current) {
+      sourceNodeRef.current = context.createMediaElementSource(audio);
+      sourceNodeRef.current.connect(context.destination);
+    }
+
+    if (!analyserRef.current) {
+      analyserRef.current = context.createAnalyser();
+      analyserRef.current.fftSize = 256;
+      analyserRef.current.smoothingTimeConstant = 0.78;
+      sourceNodeRef.current.connect(analyserRef.current);
+    }
+
+    const analyser = analyserRef.current;
+    const bins = new Uint8Array(analyser.frequencyBinCount);
+
+    const tick = () => {
+      analyser.getByteFrequencyData(bins);
+
+      const bassBandEnd = Math.max(6, Math.floor(bins.length * 0.11));
+      let bassSum = 0;
+      for (let i = 0; i < bassBandEnd; i += 1) bassSum += bins[i];
+      const bassLevel = bassSum / (bassBandEnd * 255);
+
+      let allSum = 0;
+      for (let i = 0; i < bins.length; i += 1) allSum += bins[i];
+      const energyLevel = allSum / (bins.length * 255);
+
+      setVisualizerLevels({ bassLevel, energyLevel });
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [currentTrack, isPlaying, resetVisualizer, setVisualizerLevels]);
 
   function togglePlay(): void {
     if (!currentTrack) return;
