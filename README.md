@@ -4,7 +4,7 @@ Waveon is a desktop music library for Windows built with Electron, React, TypeSc
 
 [Русская версия](./README.ru.md)
 
-![Waveon Screenshot](./screenshots/unknown_2026.04.30-04.37.png)
+![Waveon Screenshot](./screenshots/unknown_2026.05.01-03.26.png)
 
 ## About
 

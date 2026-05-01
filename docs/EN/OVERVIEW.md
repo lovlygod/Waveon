@@ -19,5 +19,5 @@ Waveon stack:
 
 Screenshot:
 
-![Waveon](../../screenshots/unknown_2026.04.30-04.37.png)
+![Waveon](../../screenshots/unknown_2026.05.01-03.26.png)
 
