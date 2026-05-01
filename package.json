@@ -1,6 +1,6 @@
 {
   "name": "waveon",
-  "version": "1.0.0",
+  "version": "1.0.1-Beta",
   "description": "Waveon desktop music library",
   "main": "dist/main/main.js",
   "scripts": {
